@@ -1,0 +1,337 @@
+================================================================================
+  PHOTO FILE SELECTOR — MANUAL DE UTILIZARE
+  Plugin pentru Lightroom Classic
+  Versiunea 1.0
+  github.com/tryingtodoart/photo-file-selector
+================================================================================
+
+
+CE FACE ACEST PLUGIN
+--------------------------------------------------------------------------------
+Dupa ce livrezi unui client o galerie cu imagini cu watermark, clientul iti
+trimite selectia lui — un folder cu pozele alese, un mesaj WhatsApp cu numere,
+un fisier .txt sau o foaie Excel. Tu trebuie apoi sa gasesti manual fisierele
+RAW corespunzatoare in catalogul Lightroom si sa le marchezi.
+
+Acest plugin automatizeaza procesul: ii spui ce a ales clientul, el cauta in
+catalog si aplica automat o stea si/sau o eticheta de culoare pe pozele potrivite.
+
+
+================================================================================
+1. INSTALARE
+================================================================================
+
+1.1 Descarca plugin-ul
+--------------------------------------------------------------------------------
+Ai nevoie doar de folderul "photo-selector-lr.lrplugin". Contine doua fisiere
+(Info.lua si PluginMenu.lua) — atat, nimic altceva nu este necesar.
+
+Descarca arhiva "photo-selector-lr.lrplugin.zip" de pe pagina de Releases:
+
+  github.com/tryingtodoart/photo-file-selector/releases
+
+Dezarhiveaza si salveaza folderul intr-un loc fix pe calculator, de exemplu:
+
+  C:\Documente\LightroomPlugins\photo-selector-lr.lrplugin\
+
+IMPORTANT: Nu muta folderul dupa instalare. Daca il muti, Lightroom nu il mai
+gaseste si trebuie reinstalat.
+
+
+1.2 Adauga plugin-ul in Lightroom Classic
+--------------------------------------------------------------------------------
+1. Deschide Lightroom Classic.
+2. Din meniu: File -> Plug-in Manager...
+   (sau apasa Ctrl+Alt+Shift+,)
+3. In fereastra care se deschide, apasa butonul "Add" din stanga jos.
+4. Navigheaza la folderul "photo-selector-lr.lrplugin" si apasa
+   "Select Folder" (pe Windows) sau "Choose" (pe Mac).
+5. Plugin-ul apare in lista cu statusul "Installed and running".
+6. Apasa "Done".
+
+Daca ai mutat folderul dupa instalare, repeta pasii de mai sus.
+
+
+================================================================================
+2. DESCHIDEREA PLUGIN-ULUI
+================================================================================
+
+Plugin-ul se acceseaza din modulul Library:
+
+  Library -> Plugin Extras -> Photo File Selector...
+
+Se deschide o fereastra de dialog cu toate optiunile.
+
+
+================================================================================
+3. FEREASTRA DE DIALOG — SECTIUNI
+================================================================================
+
+
+3.1 CLIENT SELECTION — Selectia clientului
+--------------------------------------------------------------------------------
+Aceasta sectiune ii spune plugin-ului CE a ales clientul. Exista trei
+modalitati de a introduce selectia — le poti folosi simultan, rezultatele
+se combina.
+
+
+  [ Folder selection ]
+  --------------------
+  Apasa "Folder selection" daca clientul ti-a trimis un folder cu imaginile
+  alese (de obicei JPEG-uri cu watermark sau copii reduse).
+
+  - Se deschide un browser de foldere.
+  - Selecteaza folderul primit de la client.
+  - Calea apare in campul de text de mai jos.
+
+  Plugin-ul citeste numele fisierelor din acel folder si extrage numerele de
+  identificare. Exemplu: din "C86A0155.jpg" extrage "0155".
+
+
+  [ File selection ]
+  ------------------
+  Apasa "File selection" daca clientul ti-a trimis o lista de numere intr-un
+  fisier .txt sau .csv.
+
+  - Se deschide un browser de fisiere.
+  - Selecteaza fisierul primit.
+  - Calea apare in campul de text de mai jos.
+
+  Nota despre Excel: Daca clientul a trimis un fisier .xls sau .xlsx,
+  deschide-l si salveaza-l ca .csv (File -> Save As -> CSV), apoi foloseste
+  "File selection".
+
+
+  [ Campul de cale ]
+  ------------------
+  Campul de text de sub butoane arata calea selectata. Poti si sa scrii sau
+  sa lipesti o cale direct in el, fara sa folosesti butoanele.
+
+
+  [ Lipire text — casuta mare ]
+  -----------------------------
+  Daca clientul ti-a trimis selectia printr-un mesaj — WhatsApp, SMS,
+  e-mail etc. — copiaza mesajul si lipeste-l direct in casuta de text mare.
+
+  Exemple de formate acceptate:
+
+    "Te rog trimite-mi pozele 155, 175 si 320."
+
+    155
+    175
+    245
+    275
+    320
+    603
+
+    "As vrea 0042, 0087 si 0210."
+
+  Plugin-ul intelege numerele indiferent de contextul din jur — virgule,
+  spatii, cuvinte, nu conteaza.
+
+  Butonul "Clear" sterge continutul casutei de text.
+
+
+3.2 FILENAME SETTINGS — Setari de denumire
+--------------------------------------------------------------------------------
+Aceste setari ii explica plugin-ului cum sunt denumite fisierele tale, pentru
+a sti cum sa extraga numarul de identificare din nume.
+
+
+  Prefix
+  ------
+  Prefixul este partea fixa din numele fisierului, inainte de numarul
+  secvential.
+
+    Exemplu de fisier      Prefix
+    ---------------------  ------
+    C86A0042.CR2           C86A
+    IMG_0042.CR2           IMG_
+    DSC_0042.NEF           DSC_
+
+  - Daca lasi campul gol, plugin-ul incearca sa detecteze automat numarul.
+  - Prefixul este salvat automat intre sesiuni — nu trebuie sa il introduci
+    de fiecare data.
+
+
+  Sequence digits — Numar de cifre
+  ---------------------------------
+  Cate cifre are numarul secvential din numele fisierului. Implicit este 4
+  (adica "0042").
+
+  Daca fisierele tale au numere de 4 cifre (0042) si clientul trimite 42,
+  plugin-ul completeaza automat zerouri la stanga -> 0042.
+
+
+3.3 SEARCH SCOPE — Domeniu de cautare
+--------------------------------------------------------------------------------
+Determina UNDE cauta plugin-ul in catalogul tau Lightroom.
+
+
+  Currently selected folder / collection  (implicit)
+  ---------------------------------------------------
+  Cauta doar in folderul sau colectia selectata in panoul din stanga al
+  Lightroom. Recomandat cand lucrezi la un proiect specific, pentru a evita
+  confuzii cu sesiuni foto diferite care pot avea numere identice.
+
+
+  Entire catalog
+  --------------
+  Cauta in tot catalogul Lightroom. Util daca nu stii exact in ce folder se
+  afla pozele sau daca selectia clientului acopera mai multe sesiuni.
+
+  Sfat: Daca ai sesiuni foto diferite cu numere care se repeta (de exemplu
+  doua sesiuni au ambele un fisier "0042"), foloseste optiunea cu folderul
+  selectat pentru a evita marcarea pozei gresite.
+
+
+3.4 FILE TYPES TO INCLUDE — Tipuri de fisiere
+--------------------------------------------------------------------------------
+Bifele din aceasta sectiune iti permit sa controlezi CE tipuri de fisiere
+vor fi marcate.
+
+  Bifa                   Fisiere incluse
+  ---------------------  -----------------------------------------------
+  RAW (CR2/NEF/ARW...)   Fisiere RAW: Canon CR2/CR3, Nikon NEF, Sony ARW,
+                         Olympus ORF, Panasonic RW2 etc.
+  DNG                    Fisiere Adobe DNG standard
+  DNG (HDR)              Fisiere DNG cu sufixul -HDR sau _HDR in nume
+                         (ex. C86A0042-HDR.dng)
+  JPG                    Fisiere JPEG (.jpg, .jpeg)
+  Other                  Orice alt tip de fisier din catalog
+
+  Exemplu practic: Ai fotografiat RAW+JPG. Ai livrat JPEG-urile clientului.
+  Vrei sa marchezi doar RAW-urile corespunzatoare selectiei. Debifezi JPG —
+  plugin-ul va marca doar fisierele RAW, chiar daca gaseste si JPEG-uri cu
+  acelasi numar.
+
+
+3.5 ACTION — Actiunea aplicata
+--------------------------------------------------------------------------------
+Alege ce se intampla cu pozele gasite.
+
+
+  Set star rating — Seteaza stele
+  --------------------------------
+  Bifeaza si alege din meniu cate stele sa primeasca pozele: 1 pana la 5,
+  sau "No rating" pentru a sterge stelele existente.
+
+
+  Set color label — Seteaza eticheta de culoare
+  -----------------------------------------------
+  Bifeaza si alege culoarea: Rosu, Galben, Verde, Albastru, Violet, sau
+  "None" pentru a sterge eticheta.
+
+  Poti bifa una sau ambele optiuni simultan.
+
+
+3.6 PREVIEW SI APPLY
+--------------------------------------------------------------------------------
+
+  Butonul Preview
+  ---------------
+  Inainte de a aplica orice modificare, apasa "Preview". Plugin-ul:
+
+  1. Citeste selectia clientului si extrage numerele.
+  2. Cauta in domeniul selectat.
+  3. Afiseaza rezultatul sub forma de text, de exemplu:
+
+       12 photo(s) matched (searched 847 in selected source)
+
+  Daca unele numere nu au fost gasite:
+
+       10 photo(s) matched (searched 847 in selected source) — 2 number(s) not found
+
+  Un rezultat verde inseamna ca s-au gasit potriviri.
+  Rosu inseamna ca nu s-a gasit nimic — verifica prefixul, numarul de cifre
+  si domeniul de cautare.
+
+
+  Butonul Apply
+  -------------
+  Apasa "Apply" (sau "OK") pentru a aplica steaua si/sau eticheta pe pozele
+  gasite. La final apare un mesaj de confirmare cu numarul de poze modificate
+  si lista numerelor care nu au fost gasite (daca exista).
+
+  Nota: Daca apesi "Apply" fara sa fi rulat mai intai "Preview", plugin-ul
+  ruleaza automat cautarea inainte de a aplica.
+
+
+================================================================================
+4. FLUX DE LUCRU PAS CU PAS
+================================================================================
+
+Situatie: Clientul ti-a trimis un mesaj cu selectia:
+"Vreau 155, 175, 245 si 320."
+
+Pasul 1.  Deschide Lightroom Classic, mergi la modulul Library.
+
+Pasul 2.  In panoul stang, selecteaza folderul sesiunii foto respective.
+
+Pasul 3.  Din meniu: Library -> Plugin Extras -> Photo File Selector...
+
+Pasul 4.  In "Client Selection", lipeste mesajul clientului in casuta
+          de text mare.
+
+Pasul 5.  Verifica ca "Prefix" este corect (ex. C86A) si
+          "Sequence digits" este 4.
+
+Pasul 6.  La "Search Scope", lasa bifat
+          "Currently selected folder / collection".
+
+Pasul 7.  La "File types to include", debifaza JPG daca vrei sa marchezi
+          doar RAW-urile.
+
+Pasul 8.  La "Action", bifeaza "Set star rating" si alege 5 stars
+          (sau alta valoare).
+
+Pasul 9.  Apasa "Preview" si verifica rezultatul.
+
+Pasul 10. Daca totul arata bine, apasa "Apply".
+
+Pozele sunt acum marcate in Lightroom. Le poti gasi rapid cu un filtru
+dupa stele sau culoare.
+
+
+================================================================================
+5. INTREBARI FRECVENTE
+================================================================================
+
+Plugin-ul nu gaseste nicio poza desi numerele sunt corecte.
+  Verifica prefixul — o litera gresita sau diferenta majuscula/minuscula
+  poate impiedica recunoasterea. Verifica si numarul de cifre. Incearca sa
+  schimbi domeniul de cautare la "Entire catalog".
+
+Clientul a trimis numere de 3 cifre (ex. 155) dar fisierele mele au
+4 cifre (0155).
+  Nu e o problema. Plugin-ul completeaza automat zerouri la stanga daca
+  numarul de cifre este mai mic decat cel setat in "Sequence digits".
+
+Am fisiere cu sufixul -HDR si nu sunt marcate.
+  Verifica ca bifa "DNG (HDR)" este activata in sectiunea
+  "File types to include".
+
+Vreau sa anulez marcajele aplicate.
+  Lightroom are functia Edit -> Undo (Ctrl+Z) care poate anula modificarile
+  de metadate aplicate de plugin, daca nu ai inchis catalogul intre timp.
+  Alternativ, selecteaza manual pozele si sterge steaua/eticheta.
+
+Pot folosi plugin-ul fara sa selectez un folder in prealabil?
+  Da — alege "Entire catalog" la Search Scope si plugin-ul cauta in tot
+  catalogul.
+
+
+================================================================================
+6. DEZINSTALARE
+================================================================================
+
+1. File -> Plug-in Manager...
+2. Selecteaza "Photo File Selector" din lista.
+3. Apasa "Remove".
+4. Sterge folderul "photo-selector-lr.lrplugin" de pe calculator.
+
+
+================================================================================
+  Plugin creat de tryingtodoart — Licenta MIT
+  Cod sursa disponibil pe github.com/tryingtodoart/photo-file-selector
+================================================================================
