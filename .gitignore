@@ -1,0 +1,18 @@
+# PyInstaller build output
+build/
+dist/
+*.spec
+
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Personal config (each user has their own prefix saved locally)
+.photo_selector.json
+
+# OS noise
+Thumbs.db
+.DS_Store

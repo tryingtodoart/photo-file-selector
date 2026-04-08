@@ -1,0 +1,5 @@
+# tkinter is built into Python — no install needed for the GUI
+
+# Optional — only needed for the file types shown
+openpyxl>=3.0       # .xls / .xlsx support
+python-docx>=0.8    # .doc / .docx support
