@@ -2,7 +2,7 @@
 """
 Photo File Selector
 Match and copy raw photo files based on client selections.
-Supports: folder of images, .zip, .txt, .xls/.xlsx, .doc/.docx
+Supports: folder of images, .zip, .txt, .csv, .xls/.xlsx, .doc/.docx
 """
 
 import sys
@@ -132,7 +132,7 @@ def parse_selection(path_str: str, prefix: str, num_digits: int) -> Set[str]:
             for entry in zf.namelist():
                 _scan_name(Path(entry).name)
 
-    elif path.suffix.lower() == '.txt':
+    elif path.suffix.lower() in ('.txt', '.csv'):
         with open(path, 'r', encoding='utf-8', errors='ignore') as fh:
             numbers |= parse_text_content(fh.read(), prefix, num_digits)
 
@@ -190,26 +190,33 @@ def scan_source(
 # ---------------------------------------------------------------------------
 
 class CopyWorker(threading.Thread):
-    def __init__(self, files: List[Path], dest: str, q: queue.Queue, mode: str = 'copy'):
+    def __init__(self, files: List[Path], dest: str, q: queue.Queue,
+                 mode: str = 'copy', on_conflict: str = 'overwrite'):
         super().__init__(daemon=True)
         self.files = files
         self.dest = Path(dest)
         self.q = q
-        self.mode = mode   # 'copy' or 'move'
+        self.mode = mode                 # 'copy' or 'move'
+        self.on_conflict = on_conflict   # 'overwrite' or 'skip'
 
     def run(self):
         errors = []
+        skipped = 0
         total = len(self.files)
         for i, f in enumerate(self.files):
             self.q.put(('progress', i + 1, total, f.name))
+            target = self.dest / f.name
+            if self.on_conflict == 'skip' and target.exists():
+                skipped += 1
+                continue
             try:
                 if self.mode == 'move':
-                    shutil.move(str(f), self.dest / f.name)
+                    shutil.move(str(f), target)
                 else:
-                    shutil.copy2(f, self.dest / f.name)
+                    shutil.copy2(f, target)
             except Exception as e:
                 errors.append(f"{f.name}: {e}")
-        self.q.put(('done', total - len(errors), errors))
+        self.q.put(('done', total - len(errors) - skipped, errors, skipped))
 
 
 # ---------------------------------------------------------------------------
@@ -252,8 +259,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('Photo File Selector')
-        self.geometry('740x660')
-        self.minsize(600, 520)
+        self.geometry('820x740')
+        self.minsize(720, 620)
 
         self.file_groups: List[Dict] = []   # [{ext, checkboxes: [(BoolVar, Path)]}]
         self.copy_queue: queue.Queue = queue.Queue()
@@ -359,7 +366,13 @@ class App(tk.Tk):
         ttk.Entry(dest_box, textvariable=self.dest_var).pack(
             side='left', fill='x', expand=True, padx=4, pady=4)
         ttk.Button(dest_box, text='Browse…',
-                   command=self._browse_dest).pack(side='left', padx=(2, 4), pady=4)
+                   command=self._browse_dest).pack(side='left', padx=2, pady=4)
+        sub_btn = ttk.Button(dest_box, text='+ Subfolder from source',
+                             command=self._make_source_subfolder)
+        sub_btn.pack(side='left', padx=(2, 4), pady=4)
+        self._tooltip(sub_btn,
+            "Create a subfolder inside Destination named after\n"
+            "the Source folder, and set it as the destination.")
 
         # ── Progress + Copy / Move buttons ───────────────────────────
         bottom = ttk.Frame(self)
@@ -423,9 +436,10 @@ class App(tk.Tk):
         path = filedialog.askopenfilename(
             title='Select List File',
             filetypes=[
-                ('Supported files', '*.zip *.txt *.xls *.xlsx *.doc *.docx'),
+                ('Supported files', '*.zip *.txt *.csv *.xls *.xlsx *.doc *.docx'),
                 ('ZIP Archive', '*.zip'),
                 ('Text File', '*.txt'),
+                ('CSV File', '*.csv'),
                 ('Excel File', '*.xls *.xlsx'),
                 ('Word Document', '*.doc *.docx'),
                 ('All files', '*.*'),
@@ -443,6 +457,29 @@ class App(tk.Tk):
         path = filedialog.askdirectory(title='Select Destination Folder')
         if path:
             self.dest_var.set(path)
+
+    def _make_source_subfolder(self):
+        src = self.src_var.get().strip()
+        dest = self.dest_var.get().strip()
+        if not src:
+            messagebox.showwarning('No Source', 'Set the Source Folder first.')
+            return
+        if not dest:
+            messagebox.showwarning('No Destination', 'Set the Destination Folder first.')
+            return
+        src_name = Path(src).name
+        if not src_name:
+            messagebox.showwarning('Invalid Source',
+                'Cannot derive a folder name from the Source path.')
+            return
+        new_dest = Path(dest) / src_name
+        try:
+            new_dest.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            messagebox.showerror('Error', f'Could not create folder:\n{e}')
+            return
+        self.dest_var.set(str(new_dest))
+        self.status_var.set(f'Destination set to: {new_dest}')
 
     # ------------------------------------------------------------------
     # Match logic
@@ -550,6 +587,10 @@ class App(tk.Tk):
         ttk.Label(info_row, text=summary, foreground='#555').pack(side='left')
         ttk.Button(info_row, text='Details…',
                    command=self._show_details).pack(side='right', padx=2)
+        self._all_collapsed = True
+        self.collapse_btn = ttk.Button(info_row, text='Expand all',
+                                       command=self._toggle_all_groups)
+        self.collapse_btn.pack(side='right', padx=2)
 
         if not matched:
             ttk.Label(self.scroll.inner,
@@ -570,14 +611,39 @@ class App(tk.Tk):
             grp_frame = ttk.Frame(self.scroll.inner)
             grp_frame.pack(fill='x', padx=4, pady=2)
 
-            # Header row
+            # Header row (clickable to collapse/expand)
             hdr = ttk.Frame(grp_frame)
             hdr.pack(fill='x')
-            ttk.Label(hdr,
-                      text=f'  {ext.upper() or "(no ext)"}  —  {len(files)} file(s)',
-                      font=('Segoe UI', 9, 'bold')).pack(side='left', pady=2)
+            body = ttk.Frame(grp_frame)   # holds checkboxes; toggled in/out
 
+            ext_display = ext.upper() or '(no ext)'
+            hdr_label = ttk.Label(
+                hdr, text=f'  ▶  {ext_display}  —  0/{len(files)} files',
+                font=('Segoe UI', 9, 'bold'), cursor='hand2')
+            hdr_label.pack(side='left', pady=2)
+
+            state = {'collapsed': True}
             checkboxes: List = []   # (BooleanVar, Path)
+
+            def update_label(lbl=hdr_label, cbs=checkboxes,
+                             ext_=ext_display, total=len(files), st=state):
+                arrow = '▶' if st['collapsed'] else '▼'
+                sel = sum(1 for v, _ in cbs if v.get())
+                lbl.configure(text=f'  {arrow}  {ext_}  —  {sel}/{total} files')
+
+            def set_collapsed(c, body=body, st=state, ul=update_label):
+                st['collapsed'] = c
+                if c:
+                    body.pack_forget()
+                else:
+                    body.pack(fill='x')
+                ul()
+
+            def toggle(_e=None, st=state, sc=set_collapsed):
+                sc(not st['collapsed'])
+
+            hdr_label.bind('<Button-1>', toggle)
+            hdr.bind('<Button-1>', toggle)
 
             btn_u = ttk.Button(hdr, text='Uncheck All', width=11)
             btn_c = ttk.Button(hdr, text='Check All', width=9)
@@ -585,20 +651,38 @@ class App(tk.Tk):
             btn_c.pack(side='right', padx=2)
 
             for f in sorted(files, key=lambda p: p.name.lower()):
-                var = tk.BooleanVar(value=True)
-                ttk.Checkbutton(grp_frame, text=f'  {f.name}', variable=var).pack(
+                var = tk.BooleanVar(value=False)
+                var.trace_add('write', lambda *_, ul=update_label: ul())
+                ttk.Checkbutton(body, text=f'  {f.name}', variable=var).pack(
                     anchor='w', padx=16)
                 checkboxes.append((var, f))
+
+            # Default state: collapsed (body stays unpacked)
+            update_label()
 
             btn_c.configure(command=lambda cbs=checkboxes: [v.set(True) for v, _ in cbs])
             btn_u.configure(command=lambda cbs=checkboxes: [v.set(False) for v, _ in cbs])
 
-            self.file_groups.append({'ext': ext, 'checkboxes': checkboxes})
+            self.file_groups.append({
+                'ext': ext,
+                'checkboxes': checkboxes,
+                'set_collapsed': set_collapsed,
+            })
 
         total_files = sum(len(v) for v in matched.values())
         self.status_var.set(
             f'Matched {total_files} file(s) across {len(matched)} type(s) '
             f'from {len(numbers)} selected number(s).')
+
+    def _toggle_all_groups(self):
+        new_state = not getattr(self, '_all_collapsed', False)
+        for g in self.file_groups:
+            sc = g.get('set_collapsed')
+            if sc:
+                sc(new_state)
+        self._all_collapsed = new_state
+        self.collapse_btn.configure(
+            text='Expand all' if new_state else 'Collapse all')
 
     def _show_details(self):
         report = getattr(self, '_last_report', 'No report available yet.')
@@ -658,6 +742,16 @@ class App(tk.Tk):
             messagebox.showinfo('Nothing Selected', 'No files are checked.')
             return
 
+        # Check for filename collisions in the destination
+        conflicts = sum(1 for f in files if (dest_path / f.name).exists())
+        if conflicts:
+            action = self._ask_conflict_action(conflicts, len(files), mode)
+            if action == 'cancel':
+                return
+            on_conflict = action   # 'overwrite' or 'skip'
+        else:
+            on_conflict = 'overwrite'
+
         self._transfer_mode = mode
         self.copy_btn.state(['disabled'])
         self.move_btn.state(['disabled'])
@@ -667,8 +761,53 @@ class App(tk.Tk):
         self.progress_var.set(0)
 
         self.copy_queue = queue.Queue()
-        CopyWorker(files, str(dest_path), self.copy_queue, mode).start()
+        CopyWorker(files, str(dest_path), self.copy_queue,
+                   mode, on_conflict).start()
         self.after(50, self._poll_copy)
+
+    def _ask_conflict_action(self, conflict_count: int, total: int, mode: str) -> str:
+        """Modal dialog. Returns 'overwrite', 'skip', or 'cancel'."""
+        win = tk.Toplevel(self)
+        win.title('Files Already Exist')
+        win.transient(self)
+        win.resizable(False, False)
+
+        verb = 'move' if mode == 'move' else 'copy'
+        msg = (
+            f'{conflict_count} of {total} file(s) already exist in the '
+            f'destination folder.\n\n'
+            f'  •  Overwrite all  —  replace existing files\n'
+            f'  •  Skip existing  —  keep existing, only {verb} the rest\n'
+            f'  •  Cancel  —  abort the transfer'
+        )
+        ttk.Label(win, text=msg, justify='left',
+                  padding=14).pack(anchor='w')
+
+        result = {'value': 'cancel'}
+
+        def choose(v):
+            result['value'] = v
+            win.destroy()
+
+        btns = ttk.Frame(win)
+        btns.pack(padx=14, pady=(0, 14), anchor='e')
+        ttk.Button(btns, text='Overwrite all',
+                   command=lambda: choose('overwrite')).pack(side='left', padx=4)
+        ttk.Button(btns, text='Skip existing',
+                   command=lambda: choose('skip')).pack(side='left', padx=4)
+        ttk.Button(btns, text='Cancel',
+                   command=lambda: choose('cancel')).pack(side='left', padx=4)
+
+        # Center on parent window
+        win.update_idletasks()
+        x = self.winfo_rootx() + (self.winfo_width() - win.winfo_width()) // 2
+        y = self.winfo_rooty() + (self.winfo_height() - win.winfo_height()) // 2
+        win.geometry(f'+{max(x, 0)}+{max(y, 0)}')
+
+        win.protocol('WM_DELETE_WINDOW', lambda: choose('cancel'))
+        win.grab_set()
+        self.wait_window(win)
+        return result['value']
 
     def _poll_copy(self):
         verb = 'Moving' if self._transfer_mode == 'move' else 'Copying'
@@ -680,14 +819,14 @@ class App(tk.Tk):
                     self.progress_var.set(current)
                     self.status_var.set(f'{verb} {current}/{total}: {name}')
                 elif msg[0] == 'done':
-                    _, count, errors = msg
-                    self._on_transfer_done(count, errors)
+                    _, count, errors, skipped = msg
+                    self._on_transfer_done(count, errors, skipped)
                     return
         except queue.Empty:
             pass
         self.after(50, self._poll_copy)
 
-    def _on_transfer_done(self, count: int, errors: list):
+    def _on_transfer_done(self, count: int, errors: list, skipped: int = 0):
         self.copy_btn.state(['!disabled'])
         self.move_btn.state(['!disabled'])
         self.match_btn.state(['!disabled'])
@@ -695,17 +834,24 @@ class App(tk.Tk):
 
         verb_ed = 'moved' if self._transfer_mode == 'move' else 'copied'
 
+        summary = f'Successfully {verb_ed} {count} file(s).'
+        if skipped:
+            summary += f'\nSkipped {skipped} file(s) that already existed.'
+
         if errors:
             details = '\n'.join(errors[:15])
             if len(errors) > 15:
                 details += f'\n… (+{len(errors) - 15} more)'
             messagebox.showwarning('Completed with Errors',
-                f'Successfully {verb_ed} {count} file(s).\n\nErrors:\n{details}')
+                f'{summary}\n\nErrors:\n{details}')
         else:
             messagebox.showinfo('Done!',
-                f'Successfully {verb_ed} {count} file(s) to:\n{self.dest_var.get()}')
+                f'{summary}\n\nDestination:\n{self.dest_var.get()}')
 
-        self.status_var.set(f'Done — {count} file(s) {verb_ed}.')
+        status = f'Done — {count} file(s) {verb_ed}'
+        if skipped:
+            status += f', {skipped} skipped'
+        self.status_var.set(status + '.')
 
 
 # ---------------------------------------------------------------------------
